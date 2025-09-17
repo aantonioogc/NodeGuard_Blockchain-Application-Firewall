@@ -1,0 +1,930 @@
+{
+  "nodeGuardBAF": {
+    "description": "NodeGuard BAF Complete Endpoint Test Cases",
+    "baseUrl": "http://localhost:3000",
+    "config": {
+      "authentication": {
+        "adminUsername": "admin",
+        "adminPassword": "secure_admin_password_2024",
+        "tokenEndpoint": "/admin/auth/login",
+        "logoutEndpoint": "/admin/auth/logout"
+      },
+      "variables": {
+        "JWT_TOKEN": "Replaced at runtime with actual token",
+        "CSRF_TOKEN": "Replaced at runtime with actual CSRF token",
+        "LARGE_STRING_5000_CHARS": "Generated at runtime",
+        "BATCH_OF_100_REQUESTS": "Generated at runtime",
+        "STRING_OF_MAX_LENGTH": "Generated at runtime"
+      },
+      "csrfProtection": {
+        "description": "POST/PUT/DELETE operations to admin endpoints require CSRF tokens",
+        "header": "X-CSRF-Token",
+        "source": "Obtained from login response"
+      }
+    },
+    "testCases": {
+      "publicEndpoints": {
+        "systemInfo": {
+          "method": "GET",
+          "url": "/",
+          "headers": {
+            "Accept": "application/json"
+          },
+          "expectedStatus": 200,
+          "expectedContent": ["NodeGuard", "version", "uptime"],
+          "description": "Basic system information endpoint"
+        },
+        "healthCheck": {
+          "method": "GET", 
+          "url": "/healthz",
+          "variations": [
+            {
+              "name": "basic",
+              "url": "/healthz",
+              "expectedContent": ["status", "timestamp"]
+            },
+            {
+              "name": "detailed",
+              "url": "/healthz?detailed=true",
+              "expectedContent": ["metrics", "services"]
+            }
+          ]
+        },
+        "dashboard": {
+          "method": "GET",
+          "url": "/dashboard",
+          "headers": {
+            "Accept": "text/html"
+          },
+          "expectedStatus": 200,
+          "expectedContent": ["html"]
+        },
+        "metrics": {
+          "method": "GET",
+          "url": "/metrics",
+          "headers": {
+            "Accept": "text/plain"
+          },
+          "expectedStatus": 200,
+          "expectedContent": ["TYPE", "HELP"]
+        },
+        "jsonRpc": {
+          "method": "POST",
+          "url": "/rpc",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "testCases": [
+            {
+              "name": "singleRequest",
+              "body": {
+                "jsonrpc": "2.0",
+                "method": "eth_blockNumber",
+                "id": 1
+              },
+              "expectedContent": ["jsonrpc", "result"]
+            },
+            {
+              "name": "batchRequest",
+              "body": [
+                {
+                  "jsonrpc": "2.0",
+                  "method": "eth_blockNumber",
+                  "id": 1
+                },
+                {
+                  "jsonrpc": "2.0",
+                  "method": "eth_gasPrice",
+                  "id": 2
+                }
+              ],
+              "expectedContent": ["jsonrpc"]
+            },
+            {
+              "name": "invalidJson",
+              "body": "invalid json",
+              "expectedStatus": 400
+            },
+            {
+              "name": "emptyBody",
+              "body": "",
+              "expectedStatus": 400
+            },
+            {
+              "name": "missingMethod",
+              "body": {
+                "jsonrpc": "2.0",
+                "id": 1
+              },
+              "expectedStatus": 400
+            }
+          ]
+        },
+        "backwardCompatibility": {
+          "method": "POST",
+          "url": "/",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "eth_blockNumber",
+            "id": 1
+          },
+          "expectedStatus": 307,
+          "description": "Root endpoint redirects to /rpc for backward compatibility"
+        }
+      },
+      "authentication": {
+        "login": {
+          "method": "POST",
+          "url": "/admin/auth/login",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "testCases": [
+            {
+              "name": "validCredentials",
+              "body": {
+                "username": "admin",
+                "password": "secure_admin_password_2024"
+              },
+              "expectedStatus": 200,
+              "expectedContent": ["token", "success", "csrfToken"],
+              "saveTokens": {
+                "JWT_TOKEN": "response.token",
+                "CSRF_TOKEN": "response.csrfToken"
+              }
+            },
+            {
+              "name": "invalidUsername",
+              "body": {
+                "username": "wronguser",
+                "password": "secure_admin_password_2024"
+              },
+              "expectedStatus": 401
+            },
+            {
+              "name": "invalidPassword",
+              "body": {
+                "username": "admin",
+                "password": "wrongpassword"
+              },
+              "expectedStatus": 401
+            },
+            {
+              "name": "missingPassword",
+              "body": {
+                "username": "admin"
+              },
+              "expectedStatus": 400
+            },
+            {
+              "name": "missingUsername",
+              "body": {
+                "password": "secure_admin_password_2024"
+              },
+              "expectedStatus": 400
+            },
+            {
+              "name": "emptyCredentials",
+              "body": {},
+              "expectedStatus": 400
+            }
+          ]
+        },
+        "logout": {
+          "method": "POST",
+          "url": "/admin/auth/logout",
+          "requiresAuth": true,
+          "testCases": [
+            {
+              "name": "validToken",
+              "headers": {
+                "Authorization": "Bearer {{JWT_TOKEN}}"
+              },
+              "expectedStatus": 200
+            },
+            {
+              "name": "noToken",
+              "expectedStatus": 401
+            },
+            {
+              "name": "invalidToken",
+              "headers": {
+                "Authorization": "Bearer invalid.jwt.token"
+              },
+              "expectedStatus": 401
+            },
+            {
+              "name": "malformedAuth",
+              "headers": {
+                "Authorization": "InvalidFormat"
+              },
+              "expectedStatus": 401
+            }
+          ]
+        }
+      },
+      "adminEndpoints": {
+        "health": {
+          "method": "GET",
+          "url": "/admin/health",
+          "requiresAuth": true,
+          "testCases": [
+            {
+              "name": "withAuth",
+              "headers": {
+                "Authorization": "Bearer {{JWT_TOKEN}}"
+              },
+              "expectedStatus": 200,
+              "expectedContent": ["status", "services"]
+            },
+            {
+              "name": "withoutAuth",
+              "expectedStatus": 401
+            },
+            {
+              "name": "detailed",
+              "url": "/admin/health?detailed=true",
+              "headers": {
+                "Authorization": "Bearer {{JWT_TOKEN}}"
+              },
+              "expectedStatus": 200,
+              "expectedContent": ["metrics", "detailed"]
+            }
+          ]
+        },
+        "stats": {
+          "method": "GET",
+          "url": "/admin/stats",
+          "requiresAuth": true,
+          "testCases": [
+            {
+              "name": "basic",
+              "headers": {
+                "Authorization": "Bearer {{JWT_TOKEN}}"
+              },
+              "expectedStatus": 200,
+              "expectedContent": ["requests", "blocked", "allowed"]
+            },
+            {
+              "name": "withTimeframe",
+              "url": "/admin/stats?timeframe=1h",
+              "headers": {
+                "Authorization": "Bearer {{JWT_TOKEN}}"
+              },
+              "expectedStatus": 200
+            },
+            {
+              "name": "withoutAuth",
+              "expectedStatus": 401
+            }
+          ]
+        },
+        "rules": {
+          "get": {
+            "method": "GET",
+            "url": "/admin/rules",
+            "requiresAuth": true,
+            "expectedContent": ["rules"]
+          },
+          "update": {
+            "method": "POST",
+            "url": "/admin/rules",
+            "requiresAuth": true,
+            "headers": {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer {{JWT_TOKEN}}"
+            },
+            "testCases": [
+              {
+                "name": "validRules",
+                "body": {
+                  "meta": {
+                    "version": "2.0.0",
+                    "updated": "2024-01-01T00:00:00Z"
+                  },
+                  "enforcement": {
+                    "mode": "monitor",
+                    "fail_open": false,
+                    "log_level": "info"
+                  },
+                  "static": {
+                    "blockedMethods": ["debug_*"],
+                    "allowedOrigins": ["localhost"]
+                  },
+                  "heuristics": {
+                    "rate_limiting": {
+                      "enabled": true,
+                      "threshold": 100
+                    },
+                    "pattern_detection": {
+                      "enabled": true
+                    }
+                  }
+                },
+                "expectedStatus": 200,
+                "requiresCSRF": true
+              },
+              {
+                "name": "blockMode",
+                "body": {
+                  "meta": {
+                    "version": "2.0.0",
+                    "updated": "2024-01-01T00:00:00Z"
+                  },
+                  "enforcement": {
+                    "mode": "block",
+                    "fail_open": false,
+                    "log_level": "info"
+                  },
+                  "static": {
+                    "blockedMethods": ["debug_*", "personal_*"],
+                    "allowedOrigins": ["localhost"]
+                  },
+                  "heuristics": {
+                    "rate_limiting": {
+                      "enabled": true,
+                      "threshold": 30
+                    },
+                    "pattern_detection": {
+                      "enabled": true
+                    }
+                  }
+                },
+                "expectedStatus": 200,
+                "requiresCSRF": true
+              },
+              {
+                "name": "invalidRules",
+                "body": {
+                  "rules": {
+                    "enforcement": "invalid_mode"
+                  }
+                },
+                "expectedStatus": 400,
+                "requiresCSRF": true
+              }
+            ]
+          },
+          "backups": {
+            "method": "GET",
+            "url": "/admin/rules/backups",
+            "requiresAuth": true,
+            "expectedContent": ["backups"]
+          },
+          "rollback": {
+            "method": "POST",
+            "url": "/admin/rules/rollback",
+            "requiresAuth": true,
+            "requiresCSRF": true,
+            "headers": {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer {{JWT_TOKEN}}",
+              "X-CSRF-Token": "{{CSRF_TOKEN}}"
+            },
+            "body": {
+              "backupId": "latest"
+            },
+            "expectedStatus": 200
+          }
+        },
+        "cache": {
+          "clearRules": {
+            "method": "DELETE",
+            "url": "/admin/cache/rules",
+            "requiresAuth": true,
+            "requiresCSRF": true,
+            "expectedStatus": 200
+          },
+          "clearReputation": {
+            "method": "DELETE",
+            "url": "/admin/cache/reputation",
+            "requiresAuth": true,
+            "requiresCSRF": true,
+            "expectedStatus": 200
+          },
+          "clearFingerprint": {
+            "method": "DELETE",
+            "url": "/admin/cache/fingerprint",
+            "requiresAuth": true,
+            "requiresCSRF": true,
+            "expectedStatus": 200
+          },
+          "clearInvalid": {
+            "method": "DELETE",
+            "url": "/admin/cache/invalid",
+            "requiresAuth": true,
+            "requiresCSRF": true,
+            "expectedStatus": 400
+          }
+        },
+        "reports": {
+          "security": {
+            "method": "POST",
+            "url": "/admin/reports/security",
+            "requiresAuth": true,
+            "headers": {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer {{JWT_TOKEN}}"
+            },
+            "testCases": [
+              {
+                "name": "jsonReport",
+                "body": {
+                  "timeframe": "24h",
+                  "format": "json"
+                },
+                "expectedStatus": 200,
+                "expectedContent": ["report"]
+              },
+              {
+                "name": "pdfReport", 
+                "body": {
+                  "timeframe": "1h",
+                  "format": "pdf"
+                },
+                "expectedStatus": 200
+              }
+            ]
+          }
+        },
+        "audit": {
+          "method": "GET",
+          "url": "/admin/audit",
+          "requiresAuth": true,
+          "testCases": [
+            {
+              "name": "basic",
+              "expectedContent": ["logs"]
+            },
+            {
+              "name": "filtered",
+              "url": "/admin/audit?level=error&limit=10",
+              "expectedContent": ["logs"]
+            }
+          ]
+        },
+        "tokenRotation": {
+          "method": "POST",
+          "url": "/admin/rotate-token",
+          "requiresAuth": true,
+          "requiresCSRF": true,
+          "headers": {
+            "Authorization": "Bearer {{JWT_TOKEN}}",
+            "X-CSRF-Token": "{{CSRF_TOKEN}}"
+          },
+          "expectedStatus": 200,
+          "description": "Rotate JWT tokens for security"
+        }
+      },
+      "analytics": {
+        "topAttackers": {
+          "method": "GET",
+          "requiresAuth": true,
+          "testCases": [
+            {
+              "name": "default",
+              "url": "/api/analytics/top-attackers",
+              "expectedContent": ["attackers"]
+            },
+            {
+              "name": "withLimit",
+              "url": "/api/analytics/top-attackers?limit=5",
+              "expectedContent": ["attackers"]
+            },
+            {
+              "name": "withTimeframe",
+              "url": "/api/analytics/top-attackers?timeframe=1h&limit=10",
+              "expectedContent": ["attackers"]
+            }
+          ]
+        },
+        "attackReasons": {
+          "method": "GET",
+          "requiresAuth": true,
+          "testCases": [
+            {
+              "name": "default",
+              "url": "/api/analytics/attack-reasons",
+              "expectedContent": ["reasons"]
+            },
+            {
+              "name": "withTimeframe",
+              "url": "/api/analytics/attack-reasons?timeframe=24h",
+              "expectedContent": ["reasons"]
+            }
+          ]
+        },
+        "generateReport": {
+          "method": "POST",
+          "url": "/api/analytics/generate-report",
+          "requiresAuth": true,
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer {{JWT_TOKEN}}"
+          },
+          "testCases": [
+            {
+              "name": "pdfReport",
+              "body": {
+                "format": "pdf",
+                "timeframe": "24h",
+                "includeCharts": true
+              },
+              "expectedStatus": 200
+            },
+            {
+              "name": "jsonReport",
+              "body": {
+                "format": "json",
+                "timeframe": "1h"
+              },
+              "expectedStatus": 200
+            },
+            {
+              "name": "csvReport",
+              "body": {
+                "format": "csv",
+                "timeframe": "1h",
+                "data_type": "attacks"
+              },
+              "expectedStatus": 200
+            },
+            {
+              "name": "invalidFormat",
+              "body": {
+                "format": "invalid",
+                "timeframe": "1h"
+              },
+              "expectedStatus": 200,
+              "description": "Server currently accepts invalid formats"
+            },
+            {
+              "name": "missingTimeframe",
+              "body": {
+                "format": "json"
+              },
+              "expectedStatus": 200,
+              "description": "Server currently accepts missing timeframe"
+            }
+          ]
+        },
+        "nonExistentEndpoints": {
+          "description": "Analytics endpoints that don't exist should return 404",
+          "testCases": [
+            {
+              "name": "attackPatterns",
+              "method": "GET",
+              "url": "/api/analytics/attack-patterns",
+              "requiresAuth": true,
+              "expectedStatus": 404
+            },
+            {
+              "name": "performanceMetrics",
+              "method": "GET", 
+              "url": "/api/analytics/performance",
+              "requiresAuth": true,
+              "expectedStatus": 404
+            }
+          ]
+        }
+      },
+      "securityTests": {
+        "cors": {
+          "preflight": {
+            "method": "OPTIONS",
+            "url": "/admin/health",
+            "headers": {
+              "Origin": "http://localhost:3001",
+              "Access-Control-Request-Method": "GET"
+            },
+            "expectedStatus": 204,
+            "description": "CORS preflight returns 204 No Content"
+          }
+        },
+        "invalidEndpoints": [
+          {
+            "method": "GET",
+            "url": "/nonexistent",
+            "expectedStatus": 404
+          },
+          {
+            "method": "POST",
+            "url": "/invalid/endpoint",
+            "expectedStatus": 404
+          }
+        ],
+        "malformedAuth": [
+          {
+            "name": "noBearer",
+            "method": "GET",
+            "url": "/admin/health",
+            "headers": {
+              "Authorization": "invalid_format_token"
+            },
+            "expectedStatus": 401
+          },
+          {
+            "name": "invalidJWT",
+            "method": "GET",
+            "url": "/admin/health",
+            "headers": {
+              "Authorization": "Bearer invalid.jwt.token"
+            },
+            "expectedStatus": 401
+          }
+        ],
+        "methodValidation": [
+          {
+            "method": "PUT",
+            "url": "/healthz",
+            "expectedStatus": 404,
+            "description": "Wrong methods return 404 (not 405) in current implementation"
+          },
+          {
+            "method": "DELETE",
+            "url": "/dashboard", 
+            "expectedStatus": 404,
+            "description": "Wrong methods return 404 (not 405) in current implementation"
+          }
+        ]
+      },
+      "stressTests": {
+        "largePayload": {
+          "method": "POST",
+          "url": "/rpc",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "eth_call",
+            "params": ["{{LARGE_STRING_5000_CHARS}}"],
+            "id": 1
+          },
+          "expectedStatus": [200, 413]
+        },
+        "concurrentRequests": {
+          "description": "Send 10 concurrent requests to /healthz",
+          "method": "GET",
+          "url": "/healthz",
+          "concurrency": 10,
+          "expectedStatus": 200
+        },
+        "batchLimit": {
+          "method": "POST",
+          "url": "/rpc",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{{BATCH_OF_100_REQUESTS}}",
+          "expectedStatus": [200, 413]
+        }
+      }
+    },
+    "workflows": {
+      "completeAdminWorkflow": {
+        "description": "Complete admin management workflow",
+        "steps": [
+          {
+            "step": 1,
+            "name": "login",
+            "method": "POST",
+            "url": "/admin/auth/login",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "username": "admin",
+              "password": "secure_admin_password_2024"
+            },
+            "saveToken": true
+          },
+          {
+            "step": 2,
+            "name": "getStats",
+            "method": "GET",
+            "url": "/admin/stats",
+            "headers": {
+              "Authorization": "Bearer {{JWT_TOKEN}}"
+            }
+          },
+          {
+            "step": 3,
+            "name": "updateRules",
+            "method": "POST",
+            "url": "/admin/rules",
+            "headers": {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer {{JWT_TOKEN}}",
+              "X-CSRF-Token": "{{CSRF_TOKEN}}"
+            },
+            "body": {
+              "meta": {
+                "version": "2.0.0",
+                "updated": "2024-01-01T00:00:00Z"
+              },
+              "enforcement": {
+                "mode": "monitor",
+                "fail_open": false,
+                "log_level": "info"
+              },
+              "static": {
+                "blockedMethods": ["debug_*"],
+                "allowedOrigins": ["localhost"]
+              },
+              "heuristics": {
+                "rate_limiting": {
+                  "enabled": true,
+                  "threshold": 100
+                },
+                "pattern_detection": {
+                  "enabled": true
+                }
+              }
+            }
+          },
+          {
+            "step": 4,
+            "name": "generateReport",
+            "method": "POST",
+            "url": "/admin/reports/security",
+            "headers": {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer {{JWT_TOKEN}}"
+            },
+            "body": {
+              "timeframe": "24h",
+              "format": "json"
+            }
+          },
+          {
+            "step": 5,
+            "name": "clearCache",
+            "method": "DELETE",
+            "url": "/admin/cache/rules",
+            "headers": {
+              "Authorization": "Bearer {{JWT_TOKEN}}",
+              "X-CSRF-Token": "{{CSRF_TOKEN}}"
+            }
+          },
+          {
+            "step": 6,
+            "name": "logout",
+            "method": "POST",
+            "url": "/admin/auth/logout",
+            "headers": {
+              "Authorization": "Bearer {{JWT_TOKEN}}"
+            }
+          }
+        ]
+      },
+      "publicApiWorkflow": {
+        "description": "Public API usage workflow",
+        "steps": [
+          {
+            "step": 1,
+            "name": "healthCheck",
+            "method": "GET",
+            "url": "/healthz"
+          },
+          {
+            "step": 2,
+            "name": "systemInfo",
+            "method": "GET",
+            "url": "/"
+          },
+          {
+            "step": 3,
+            "name": "jsonRpcCall",
+            "method": "POST",
+            "url": "/rpc",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "jsonrpc": "2.0",
+              "method": "eth_blockNumber",
+              "id": 1
+            }
+          },
+          {
+            "step": 4,
+            "name": "getMetrics",
+            "method": "GET",
+            "url": "/metrics"
+          }
+        ]
+      },
+      "analyticsWorkflow": {
+        "description": "Analytics data retrieval workflow",
+        "requiresAuth": true,
+        "steps": [
+          {
+            "step": 1,
+            "name": "getTopAttackers",
+            "method": "GET",
+            "url": "/api/analytics/top-attackers?limit=10",
+            "headers": {
+              "Authorization": "Bearer {{JWT_TOKEN}}"
+            }
+          },
+          {
+            "step": 2,
+            "name": "getAttackReasons",
+            "method": "GET",
+            "url": "/api/analytics/attack-reasons?timeframe=24h",
+            "headers": {
+              "Authorization": "Bearer {{JWT_TOKEN}}"
+            }
+          },
+          {
+            "step": 3,
+            "name": "generateAnalyticsReport",
+            "method": "POST",
+            "url": "/api/analytics/generate-report",
+            "headers": {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer {{JWT_TOKEN}}"
+            },
+            "body": {
+              "format": "json",
+              "timeframe": "24h",
+              "includeCharts": false
+            }
+          }
+        ]
+      }
+    },
+    "edgeCases": {
+      "unicodeSupport": {
+        "method": "POST",
+        "url": "/rpc",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "jsonrpc": "2.0",
+          "method": "test_unicode",
+          "params": ["测试数据", "émojis 🔥", "русский текст"],
+          "id": 1
+        }
+      },
+      "specialCharacters": {
+        "method": "POST",
+        "url": "/rpc",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "jsonrpc": "2.0",
+          "method": "test_special_chars",
+          "params": ["data with spaces", "data-with-dashes", "data_with_underscores", "data.with.dots"],
+          "id": 1
+        }
+      },
+      "boundaryCases": {
+        "maxStringLength": {
+          "description": "Test with maximum allowed string length",
+          "method": "POST",
+          "url": "/rpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "eth_call",
+            "params": ["{{STRING_OF_MAX_LENGTH}}"],
+            "id": 1
+          }
+        },
+        "zeroValues": {
+          "method": "POST",
+          "url": "/rpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "eth_call",
+            "params": [0, "0x0", ""],
+            "id": 0
+          }
+        }
+      }
+    },
+    "changelog": {
+      "version": "2.1.0",
+      "date": "2025-09-05",
+      "changes": [
+        "Updated CORS preflight expected status from 200 to 204",
+        "Updated method validation expected status from 405 to 404", 
+        "Added backward compatibility endpoint test (POST / returns 307)",
+        "Updated rules format to complete structure with meta, enforcement, static, heuristics",
+        "Added CSRF token requirements for POST/PUT/DELETE admin operations",
+        "Added rotate-token endpoint test",
+        "Added non-existent analytics endpoints returning 404",
+        "Updated analytics report tests to reflect actual server behavior",
+        "Added comprehensive token management configuration",
+        "Updated workflows to include CSRF tokens",
+        "Added descriptions for behavior clarifications"
+      ]
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "version": "2.0.0",
+    "updated_at": "2025-09-11T18:23:32.740Z"
+  },
+  "enforcement": {
+    "mode": "monitor",
+    "fail_open": false,
+    "notify_on_block": true,
+    "block_response_code": -32000,
+    "adaptiveEnforcement": false
+  },
+  "static": {
+    "blockedMethods": [
+      "debug_*"
+    ],
+    "allowedMethods": [],
+    "methodParamConstraints": {},
+    "blockedAddresses": [],
+    "allowedAddresses": [],
+    "blockedContracts": [],
+    "allowedContracts": [],
+    "functionSelectorBlacklist": [],
+    "functionSelectorPatterns": [],
+    "contractFunctionBlacklist": {},
+    "whitelist": {
+      "adminIps": [],
+      "serviceAccounts": [],
+      "trustedProxies": []
+    },
+    "blacklist": {
+      "countryCodes": [],
+      "torExitNodes": false,
+      "vpnProviders": false,
+      "knownMaliciousIps": []
+    },
+    "versioning": {}
+  },
+  "heuristics": {}
+}
